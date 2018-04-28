@@ -1,7 +1,7 @@
 import tensorflow as tf 
 
 # Naming follows the format in https://github.com/jcjohnson/fast-neural-style
-def c7s1_k(input, k, name="c7s1_k"):
+def c7s1_k(input, k, use_norm=True, use_relu=True, name="c7s1_k"):
 	with tf.variable_scope(name):
 		filters = tf.get_variable("filters", 
 			shape=[7, 7, input.get_shape()[3], k],
@@ -9,10 +9,16 @@ def c7s1_k(input, k, name="c7s1_k"):
 		# 3 = (7 - 1) / 2
 		padded = tf.pad(input, [[0, 0], [3, 3], [3, 3], [0, 0]], "REFLECT")
 		conv = tf.nn.conv2d(padded, filters, strides=[1, 1, 1, 1], padding="VALID")
-		norm = instance_norm(conv)
-		relu = tf.nn.relu(norm)
+		if use_norm:
+			norm = instance_norm(conv)
+		else:
+			norm = conv
+		if use_relu:
+			output = tf.nn.relu(norm)
+		else:
+			output = tf.nn.tanh(norm)
 
-		return relu
+		return output
 
 def dk(input, k, name="dk"):
 	with tf.variable_scope(name):
@@ -54,7 +60,7 @@ def uk(input, k, output_size=None, name="uk"):
 		if not output_size:
 			output_size = input.get_shape()[1] * 2
 		deconv = tf.nn.conv2d_transpose(input, filters, 
-			output_shape=[input.get_shape()[0], output_size, output_size, k],
+			output_shape=tf.stack([tf.shape(input)[0], output_size, output_size, k]),
 			strides=[1, 2, 2, 1],
 			padding="SAME", name="deconv")
 		norm = instance_norm(deconv)
@@ -93,7 +99,7 @@ def Ck(input, k, use_norm=True, use_relu=True, name="Ck"):
 		# Leaky ReLu
 		if use_relu:
 			lrelu = tf.maximum(norm, 0.2 * norm)
-		else
+		else:
 			lrelu = norm
 
 		return lrelu
